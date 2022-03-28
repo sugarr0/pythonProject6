@@ -1,67 +1,83 @@
-from flask import Flask
-from data import db_session
+from flask import Flask, redirect, render_template
 from data.users import User
-from data.jobs import Jobs
-import datetime
+from flask_login import LoginManager, login_user, login_required, logout_user
+from data.db_session import global_init, create_session
+from forms.loginForm import LoginForm
+from forms.user import RegisterForm
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 
 def main():
-    db_session.global_init("db/mars.db")
-    db_sess = db_session.create_session()
-    # app.run()
-    user = User()
-    user.name = "Ridley"
-    user.surname = "Scott"
-    user.age = 21
-    user.position = "captain"
-    user.speciality = "research engineer"
-    user.address = "module_1"
-    user.email = "scott_chief@mars.org"
-    db_sess.add(user)
+    global_init('db/mars.db')
+    db_sess = create_session()
+    app.run()
 
-    user1 = User()
-    user1.name = "Rich"
-    user1.surname = "Kay"
-    user1.age = 20
-    user1.position = "engineer"
-    user1.speciality = "research engineer"
-    user1.address = "module_2"
-    user1.email = "kay_rich@mars.ru"
-    db_sess.add(user1)
 
-    user2 = User()
-    user2.name = "Holly"
-    user2.surname = "Kay"
-    user2.age = 19
-    user2.position = "engineer"
-    user2.speciality = "research engineer"
-    user2.address = "module_2"
-    user2.email = "kay_holly@mars.ru"
-    db_sess.add(user2)
+@login_manager.user_loader
+def load_user(user_id):
+    db_sess = create_session()
+    return db_sess.query(User).get(user_id)
 
-    user3 = User()
-    user3.name = "Maurice"
-    user3.surname = "Bay"
-    user3.age = 27
-    user3.position = "deputy captain"
-    user3.speciality = "doctor"
-    user3.address = "module_1"
-    user3.email = "maurice_chief2@mars.org"
-    db_sess.add(user3)
 
-    jobs = Jobs()
-    jobs.team_leader = 1
-    jobs.job = "deployment of residential modules 1 and 2"
-    jobs.work_size = 15
-    jobs.collaborators = "2, 3"
-    # jobs.start_date = datetime.datetime.now
-    jobs.is_finished = False
-    db_sess.add(jobs)
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect("/")
 
-    db_sess.commit()
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        db_sess = create_session()
+        user = db_sess.query(User).filter(User.email == form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            return redirect("/")
+        return render_template('login.html',
+                               message="Неправильный логин или пароль",
+                               form=form)
+    return render_template('login.html', title='Авторизация', form=form)
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def reqister():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        if form.password.data != form.password_again.data:
+            return render_template('register.html', title='Регистрация',
+                                   form=form,
+                                   message="Пароли не совпадают")
+        db_sess = create_session()
+        if db_sess.query(User).filter(User.email == form.email.data).first():
+            return render_template('register.html', title='Регистрация',
+                                   form=form,
+                                   message="Такой пользователь уже есть")
+        user = User(
+            name=form.name.data,
+            email=form.email.data,
+            surname=form.surname.data,
+            age=form.age.data
+        )
+        user.set_password(form.password.data)
+        db_sess.add(user)
+        db_sess.commit()
+        return redirect('/login')
+    return render_template('register.html', title='Регистрация', form=form)
+
+
+@app.route('/')
+@app.route('/index')
+def index():
+    user = "новый Колонист"
+    return render_template('index.html', title='Домашняя страница',
+                           username=user)
 
 
 if __name__ == '__main__':
