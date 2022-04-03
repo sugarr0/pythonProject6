@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Привет, {{ username }}!</h1><br>
+    {% if current_user.is_authenticated %}
+    {% set a = 0 %}
+    {% for item in jobs %}
+        <h3>Action #{{loop.index}}</h3>
+        <table class="table table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Title of activity</th>
+      <th scope="col">Team leader</th>
+      <th scope="col">Duration</th>
+      <th scope="col">List of collaborators</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row">{{item.job}}</th>
+      <td>{{names[loop.index - 1]}}</td>
+      <td>{{item.work_size}}</td>
+      <td>{{item.collaborators}}</td>
+    </tr>
+  </tbody>
+</table>
+<br>
+    {% endfor %}
+    <p>
+        <a class="btn btn-primary " href="/addjob">Добавить работу</a>
+    </p>
+{% endif %}
+{% endblock %}
