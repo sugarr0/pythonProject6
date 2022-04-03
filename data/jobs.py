@@ -19,5 +19,5 @@ class Jobs(SqlAlchemyBase):
 
     start_date = sqlalchemy.Column(sqlalchemy.DateTime,
                                    default=datetime.datetime.now, nullable=True)
-    end_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True)
-    is_finished = sqlalchemy.Column(sqlalchemy.Boolean, default=True)
+    end_date = sqlalchemy.Column(sqlalchemy.String, nullable=True, default='')
+    is_finished = sqlalchemy.Column(sqlalchemy.Boolean, default=False)
