@@ -1,7 +1,7 @@
-from flask import Flask, redirect, render_template
+from flask import Flask, redirect, render_template, request, abort
 from data.users import User
 from data.jobs import Jobs
-from flask_login import LoginManager, login_user, login_required, logout_user
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from data.db_session import global_init, create_session
 from forms.loginForm import LoginForm
 from forms.user import RegisterForm
@@ -78,25 +78,68 @@ def addjob():
     form = AddJobForm()
     if form.validate_on_submit():
         db_sess = create_session()
-        if form.start_date.data == '':
-            job = Jobs(
-                team_leader=form.team_leader.data,
-                job=form.job.data,
-                work_size=form.work_size.data,
-                collaborators=form.collaborators.data
-            )
-        else:
-            job = Jobs(
-                team_leader=form.team_leader.data,
-                job=form.job.data,
-                work_size=form.work_size.data,
-                collaborators=form.collaborators.data,
-                start_date=form.start_date.data
-            )
+        job = Jobs(
+            team_leader=form.team_leader.data,
+            job=form.job.data,
+            work_size=form.work_size.data,
+            collaborators=form.collaborators.data,
+            user=current_user
+        )
         db_sess.add(job)
         db_sess.commit()
         return redirect('/')
     return render_template('addJob.html', title='Регистрация работы', form=form)
+
+
+@app.route('/jobs/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_news(id):
+    form = AddJobForm()
+    if request.method == "GET":
+        db_sess = create_session()
+        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
+                                          Jobs.user == current_user
+                                          ).first()
+        if jobs:
+            form.team_leader.data = jobs.team_leader
+            form.job.data = jobs.job
+            form.work_size.data = jobs.work_size
+            form.collaborators.data = jobs.collaborators
+        else:
+            abort(404)
+    if form.validate_on_submit():
+        db_sess = create_session()
+        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
+                                          Jobs.user == current_user
+                                          ).first()
+        if jobs:
+            jobs.team_leader = form.team_leader.data
+            jobs.job = form.job.data
+            jobs.work_size = form.work_size.data
+            jobs.collaborators = form.collaborators.data
+            db_sess.commit()
+            return redirect('/')
+        else:
+            abort(404)
+    return render_template('addJob.html',
+                           title='Редактирование работу',
+                           form=form
+                           )
+
+
+@app.route('/jobs_delete/<int:id>', methods=['GET', 'POST'])
+@login_required
+def news_delete(id):
+    db_sess = create_session()
+    jobs = db_sess.query(Jobs).filter(Jobs.id == id,
+                                      Jobs.user == current_user
+                                      ).first()
+    if jobs:
+        db_sess.delete(jobs)
+        db_sess.commit()
+    else:
+        abort(404)
+    return redirect('/')
 
 
 @app.route('/')
