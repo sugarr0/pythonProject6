@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <center><h1>Nostalgy</h1></center><br>
+    <center><h1>{{ userinf['name']}} {{userinf['surname'] }}</h1></center><br>
+    <center><h2>Hometown {{ userinf['city_from'] }}</h2></center><br>
+<center><img src={{ img }} alt="здесь должна была быть картинка, но не нашлась"></center>
+    
+{% endblock %}
