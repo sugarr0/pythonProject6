@@ -1,24 +1,22 @@
-from flask import Flask, redirect, render_template, request, abort, jsonify
+from flask import Flask, redirect, make_response, render_template, request, abort, jsonify
+from data.Cities import City
+from data.aboutSport import AboutSport
+from data.sport import Sport
 from data.users import User
-from data.jobs import Jobs
-from data import jobs_api, users_api
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from data.db_session import global_init, create_session
 from forms.loginForm import LoginForm
 from forms.user import RegisterForm
-from forms.addJobForm import AddJobForm
-from requests import get
-import sys
-from io import BytesIO
-import requests
-from PIL import Image
+from forms.test import TestForm
+from requests import get, post
+from data import users_resources
+from flask_restful import reqparse, abort, Api, Resource
 
 app = Flask(__name__)
+api = Api(app)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
 login_manager = LoginManager()
 login_manager.init_app(app)
-
-from flask import make_response
 
 
 @app.errorhandler(404)
@@ -27,9 +25,9 @@ def not_found(error):
 
 
 def main():
-    global_init('db/mars.db')
-    app.register_blueprint(jobs_api.blueprint)
-    app.register_blueprint(users_api.blueprint)
+    global_init('db/my.db')
+    api.add_resource(users_resources.UsersListResource, '/api/users')
+    api.add_resource(users_resources.UsersResource, '/api/users/<int:users_id>')
     app.run()
 
 
@@ -61,50 +59,21 @@ def login():
     return render_template('login.html', title='Авторизация', form=form)
 
 
-@app.route('/users_show/<int:user_id>', methods=['GET', 'POST'])
-def users_show(user_id):
-    user_dict = get(f'http://localhost:5000/api/users/{user_id}').json()
-    if 'error' in user_dict:
-        return user_dict['error']
+@app.route('/test', methods=['GET', 'POST'])
+def test():
+    form = TestForm()
+    return render_template('test.html', title='Авторизация', form=form)
 
-    geocoder_api_server = "http://geocode-maps.yandex.ru/1.x/"
 
-    geocoder_params = {
-        "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
-        "geocode": user_dict['users']['city_from'],
-        "format": "json"}
-
-    response = requests.get(geocoder_api_server, params=geocoder_params)
-
-    if not response:
-        return jsonify({'error': response.status_code})
-
-    json_response = response.json()
-    # Получаем первый топоним из ответа геокодера.
-    toponym = json_response["response"]["GeoObjectCollection"][
-        "featureMember"][0]["GeoObject"]
-    # Координаты центра топонима:
-    toponym_coodrinates = toponym["Point"]["pos"]
-    # Долгота и широта:
-    toponym_longitude, toponym_lattitude = toponym_coodrinates.split(" ")
-
-    delta = "0.05"
-
-    # Собираем параметры для запроса к StaticMapsAPI:
-    map_params = {
-        "ll": ",".join([toponym_longitude, toponym_lattitude]),
-        "spn": ",".join([delta, delta]),
-        "l": "map"
-    }
-
-    map_api_server = "http://static-maps.yandex.ru/1.x/"
-    # ... и выполняем запрос
-    response = requests.get(map_api_server, params=map_params)
-
-    map_file = "static/img/map.jpg"
-    with open(map_file, "wb") as file:
-        file.write(response.content)
-    return render_template('city.html', title='Nostalgy', userinf=user_dict['users'], img="/../static/img/map.jpg")
+@app.route('/wow/<int:ind>', methods=['GET', 'POST'])
+def teste(ind):
+    form = TestForm()
+    if ind == 1:
+        current_user.city = 'Грязи'
+        return redirect("/")
+    else:
+        current_user.city = 'Липецк'
+        return redirect("/")
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -120,101 +89,32 @@ def reqister():
             return render_template('register.html', title='Регистрация',
                                    form=form,
                                    message="Такой пользователь уже есть")
-        user = User(
-            name=form.name.data,
-            email=form.email.data,
-            surname=form.surname.data,
-            age=form.age.data
-        )
-        user.set_password(form.password.data)
-        db_sess.add(user)
-        db_sess.commit()
+        res = post("http://127.0.0.1:5000/api/users", json={'email': form.email.data,
+                                                            'password': form.password.data,
+                                                            'name': form.name.data,
+                                                            'surname': form.surname.data,
+                                                            'city': form.city.data,
+                                                            }).json()
         return redirect('/login')
     return render_template('register.html', title='Регистрация', form=form)
 
 
-@app.route('/addjob', methods=['GET', 'POST'])
-def addjob():
-    form = AddJobForm()
-    if form.validate_on_submit():
-        db_sess = create_session()
-        job = Jobs(
-            team_leader=form.team_leader.data,
-            job=form.job.data,
-            work_size=form.work_size.data,
-            collaborators=form.collaborators.data,
-            user=current_user
-        )
-        db_sess.add(job)
-        db_sess.commit()
-        return redirect('/')
-    return render_template('addJob.html', title='Регистрация работы', form=form)
-
-
-@app.route('/jobs/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_jobs(id):
-    form = AddJobForm()
-    if request.method == "GET":
-        db_sess = create_session()
-        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
-                                          Jobs.user == current_user
-                                          ).first()
-        if jobs:
-            form.team_leader.data = jobs.team_leader
-            form.job.data = jobs.job
-            form.work_size.data = jobs.work_size
-            form.collaborators.data = jobs.collaborators
-        else:
-            abort(404)
-    if form.validate_on_submit():
-        db_sess = create_session()
-        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
-                                          Jobs.user == current_user
-                                          ).first()
-        if jobs:
-            jobs.team_leader = form.team_leader.data
-            jobs.job = form.job.data
-            jobs.work_size = form.work_size.data
-            jobs.collaborators = form.collaborators.data
-            db_sess.commit()
-            return redirect('/')
-        else:
-            abort(404)
-    return render_template('addJob.html',
-                           title='Редактирование работу',
-                           form=form
-                           )
-
-
-@app.route('/jobs_delete/<int:id>', methods=['GET', 'POST'])
-@login_required
-def news_delete(id):
-    db_sess = create_session()
-    jobs = db_sess.query(Jobs).filter(Jobs.id == id,
-                                      Jobs.user == current_user
-                                      ).first()
-    if jobs:
-        db_sess.delete(jobs)
-        db_sess.commit()
-    else:
-        abort(404)
-    return redirect('/')
-
-
-@app.route('/')
-@app.route('/index')
+@app.route('/', methods=['POST', 'GET'])
 def index():
-    user = "новый Колонист"
     db_sess = create_session()
-    jobs = db_sess.query(Jobs).all()
-    ind = [el.team_leader for el in jobs]
-    team_leaders_names = []
-    for indx in ind:
-        use = db_sess.query(User).filter(User.id == indx).first()
-        team_leaders_names.append(use.name + ' ' + use.surname)
-    return render_template('index.html', title='Домашняя страница',
-                           username=user, jobs=jobs, names=team_leaders_names)
+    cities = db_sess.query(City).all()
+    ct = [c.city for c in cities]
+    ind = [c.id for c in cities if c.city == current_user.city]
+    if ind:
+        sports_in_city = db_sess.query(AboutSport).filter(AboutSport.city_id == ind[0]).all()
+        sports_id = [s.sport_id for s in sports_in_city]
+        sports = db_sess.query(Sport).filter(Sport.id.in_(sports_id)).all()
+    if request.method == 'POST':
+        user = db_sess.query(User).filter(User.id == current_user.id).first()
+        user.city = request.form['city']
+        db_sess.commit()
+        return redirect("/")
+    return render_template('index.html', title='Домашняя страница', cities=ct, sports=sports)
 
 
 if __name__ == '__main__':

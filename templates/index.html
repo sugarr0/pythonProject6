@@ -1,44 +1,25 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Привет, {{ username }}!</h1><br>
-    {% if current_user.is_authenticated %}
-    {% set a = 0 %}
-    {% for item in jobs %}
-        <h3>Action #{{loop.index}}</h3>
-        <table class="table table-striped">
-  <thead>
-    <tr>
-      <th scope="col">Title of activity</th>
-      <th scope="col">Team leader</th>
-      <th scope="col">Duration</th>
-      <th scope="col">List of collaborators</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th scope="row">{{item.job}}</th>
-      <td>{{names[loop.index - 1]}}</td>
-      <td>{{item.work_size}}</td>
-      <td>{{item.collaborators}}</td>
-    </tr>
-  </tbody>
-</table>
-{% if current_user.is_authenticated and current_user == item.user %}
-    <div>
-        <a href="/jobs/{{ item.id }}" class="btn btn-warning">
-            Изменить
-        </a>
-
-        <a href="/jobs_delete/{{ item.id }}" class="btn btn-danger">
-            Удалить
-        </a>
+<h1>Добро пожаловать</h1><br>
+{% if current_user.is_authenticated %}
+<p>
+    <a> {{ current_user.city }} </a>
+</p>
+<form class="login_form" method="post">
+    <div class="form-group">
+        <select class="form-control" id="classSelect" name="city" aria-labelledby="dropdownMenuButton1">
+            {% for c in cities %}
+            <option class="dropdown-item">{{ c }}</option>
+            {% endfor %}
+        </select>
     </div>
-{% endif %}
-<br>
-    {% endfor %}
-    <p>
-        <a class="btn btn-primary " href="/addjob">Добавить работу</a>
-    </p>
+    <br><br>
+    <button type="submit" class="btn btn-primary">Показать виды спорта
+    </button>
+</form>
+{% for s in sports %}
+            <a>{{ s.sport }}</a><br>
+            {% endfor %}
 {% endif %}
 {% endblock %}
