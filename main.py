@@ -1,4 +1,5 @@
 from flask import Flask, redirect, make_response, render_template, request, abort, jsonify
+import requests
 from data.Cities import City
 from data.aboutSport import AboutSport
 from data.sport import Sport
@@ -99,22 +100,89 @@ def reqister():
     return render_template('register.html', title='Регистрация', form=form)
 
 
+@app.route('/sport/<int:ind>', methods=['GET', 'POST'])
+def sport(ind):
+    db_sess = create_session()
+    current_user.sport = ind
+    db_sess.commit()
+    return redirect("/carta")
+
+
+def get_geocod(plase):
+    geocoder_api_server = "http://geocode-maps.yandex.ru/1.x/"
+
+    geocoder_params = {
+        "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
+        "geocode": plase,
+        "format": "json"}
+
+    response = requests.get(geocoder_api_server, params=geocoder_params)
+
+    if not response:
+        return jsonify({'error': response.status_code})
+
+    json_response = response.json()
+    toponym = json_response["response"]["GeoObjectCollection"][
+        "featureMember"][0]["GeoObject"]
+    toponym_coodrinates = toponym["Point"]["pos"]
+    return toponym_coodrinates
+
+
+@app.route('/carta', methods=['GET', 'POST'])
+def carta():
+    toponym_longitude, toponym_lattitude = get_geocod(current_user.city).split(" ")
+
+    delta = "0.05"
+    db_sess = create_session()
+    cities = db_sess.query(City).filter(City.city == current_user.city).first()
+    point = db_sess.query(AboutSport).filter(
+        AboutSport.city_id == cities.id, AboutSport.sport_id == current_user.sport).first()
+    pt = ''
+    i = 1
+    info = []
+    for p in point.address.split(';')[:-1]:
+        info.append(f'{i}: {p}, {point.cont}')
+        po = ','.join(get_geocod(p).split(" "))
+        pt += f'{po},pm2bll{i}~'
+        i += 1
+    print(info)
+    pt = pt[:-1]
+
+    map_params = {
+        "ll": ",".join([toponym_longitude, toponym_lattitude]),
+        "spn": ",".join([delta, delta]),
+        "l": "map",
+        "pt": pt
+    }
+
+    map_api_server = "http://static-maps.yandex.ru/1.x/"
+    response = requests.get(map_api_server, params=map_params)
+
+    map_file = "static/img/map.jpg"
+    with open(map_file, "wb") as file:
+        file.write(response.content)
+    return render_template('carta.html', title='', img="/../static/img/map.jpg", info=info)
+
+
 @app.route('/', methods=['POST', 'GET'])
 def index():
-    db_sess = create_session()
-    cities = db_sess.query(City).all()
-    ct = [c.city for c in cities]
-    ind = [c.id for c in cities if c.city == current_user.city]
-    if ind:
+    if current_user.is_authenticated:
+        db_sess = create_session()
+        cities = db_sess.query(City).filter(City.city != current_user.city).all()
+        ct = [current_user.city, *[c for c in [c.city for c in cities]]]
+        cities = db_sess.query(City).all()
+        ind = [c.id for c in cities if c.city == current_user.city]
         sports_in_city = db_sess.query(AboutSport).filter(AboutSport.city_id == ind[0]).all()
         sports_id = [s.sport_id for s in sports_in_city]
         sports = db_sess.query(Sport).filter(Sport.id.in_(sports_id)).all()
-    if request.method == 'POST':
-        user = db_sess.query(User).filter(User.id == current_user.id).first()
-        user.city = request.form['city']
-        db_sess.commit()
-        return redirect("/")
-    return render_template('index.html', title='Домашняя страница', cities=ct, sports=sports)
+        if request.method == 'POST':
+            user = db_sess.query(User).filter(User.id == current_user.id).first()
+            user.city = request.form['city']
+            db_sess.commit()
+            return redirect("/")
+        return render_template('index.html', title='Домашняя страница', cities=ct, sports=sports)
+    else:
+        return render_template('index.html', title='Домашняя страница')
 
 
 if __name__ == '__main__':

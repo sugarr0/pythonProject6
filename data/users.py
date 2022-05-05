@@ -20,6 +20,7 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     email = sqlalchemy.Column(sqlalchemy.String,
                               index=True, unique=True, nullable=True)
     hashed_password = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    sport = sqlalchemy.Column(sqlalchemy.String, nullable=True)
 
     def __repr__(self):
         return f'<Colonist> {self.id} {self.surname} {self.name}'

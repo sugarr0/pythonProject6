@@ -14,4 +14,3 @@ class City(SqlAlchemyBase, UserMixin, SerializerMixin):
     id = sqlalchemy.Column(sqlalchemy.Integer,
                            primary_key=True, autoincrement=True)
     city = sqlalchemy.Column(sqlalchemy.String, nullable=True)
-    sports_id = sqlalchemy.Column(sqlalchemy.String, nullable=True)
